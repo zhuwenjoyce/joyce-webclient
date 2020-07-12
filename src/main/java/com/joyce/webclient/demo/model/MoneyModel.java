@@ -40,4 +40,14 @@ public class MoneyModel {
     public void setRemark(String remark) {
         this.remark = remark;
     }
+
+    @Override
+    public String toString() {
+        return "MoneyModel{" +
+                "id=" + id +
+                ", userId=" + userId +
+                ", money=" + money +
+                ", remark='" + remark + '\'' +
+                '}';
+    }
 }

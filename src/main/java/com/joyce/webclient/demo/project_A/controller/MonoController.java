@@ -66,14 +66,14 @@ public class MonoController {
     }
 
     /**
-     * 演示webclient基本调用
+     * 演示timout超时，及错误处理
      */
     @RequestMapping("/mono/test-timeout")
     public UserModel getMoney_webclient_error(){
         UserModel model = new UserModel();
-        model.setUsername("myname");
+        model.setUsername("myname-mono");
 
-        logger.info("query2，开始webclient请求");
+        logger.info("mno-query2，开始webclient请求");
 
         // 拿到http请求结果
         WebClient.ResponseSpec responseSpec = WebClient.create()
@@ -82,26 +82,51 @@ public class MonoController {
                 .retrieve();
 
         responseSpec.onStatus(HttpStatus::is5xxServerError, clientResponse -> {
-            return Mono.error(new Exception(clientResponse.statusCode().value() + " error code!!!!!!!!!!"));
+            logger.info("请求出错1：statusCode=" + clientResponse.statusCode());
+            return Mono.error(new Exception(clientResponse.statusCode().value() + " error code-11111"));
+        }).onStatus(HttpStatus::isError, clientResponse -> {
+            logger.info("请求出错2：statusCode=" + clientResponse.statusCode());
+            return Mono.error(new Exception(clientResponse.statusCode().value() + " error code-22222"));
         });
 
         // 返回 Mono对象
         Mono<MoneyModel> mono = responseSpec.bodyToMono(MoneyModel.class);
 
-        MoneyModel moneyModel = mono.block(Duration.ofSeconds(1));
+        // 结果处理方式1，异步返回值，controller都返回值到前端了，这里才刚拿到值。
+//        mono.subscribe(moneyModel -> {
+//            logger.info("subscribe返回值：" + moneyModel.getMoney());
+//            model.setMoneyModel(moneyModel);
+//        });
 
-        mono.doOnError(e->{
-            logger.info("请求出错：" + e.getMessage());
+        // 结果处理方式2，堵塞线程，直到拿到值。顺便设置一个超时时间
+        MoneyModel moneyModel = mono.cache(Duration.ofSeconds(15)).block(Duration.ofSeconds(100));
+        model.setMoneyModel(moneyModel);
+
+        mono
+        .cache(Duration.ofSeconds(15)) // 返回数据缓存15秒，所以15秒内前端查询都是缓存中的一个值，而不会刷新
+        .subscribe(moneyModel1 -> {
+            logger.info("subscribe返回值1：" + moneyModel1);
+            model.getMoneyModelList().add(moneyModel1);
         });
-        mono.doOnError(IllegalStateException.class, e -> {
-            logger.error("发现超时错误啦：：：： " + e.getMessage());
+
+        mono.subscribe(moneyModel2 -> {
+            logger.info("subscribe返回值2：" + moneyModel2);
+            model.getMoneyModelList().add(moneyModel2);
         });
 
-        mono.delayElement(Duration.ofSeconds(2));
 
-        logger.info("query2，返回webclient请求");
+//        MoneyModel moneyModel = mono.block(Duration.ofSeconds(1));
 
-        model.setMoneyModel(moneyModel); // 最多等待1秒，如果没有等到结果就返回错误：IllegalStateException: Timeout on blocking read for 1000 MILLISECONDS
+//        mono.doOnError(e->{
+//            logger.info("请求出错3：" + e.getMessage());
+//        });
+
+//        mono.delayElement(Duration.ofSeconds(2));
+
+        logger.info("mono-query2，返回webclient请求");
+        model.setCreateTimeStr(MyPrintUtil.getCurrentTimeStr());
+
+//        model.setMoneyModel(mono.block(Duration.ofSeconds(1))); // 最多等待1秒，如果没有等到结果就返回错误：IllegalStateException: Timeout on blocking read for 1000 MILLISECONDS
         return model;
     }
 
