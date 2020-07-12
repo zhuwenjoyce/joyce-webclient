@@ -32,7 +32,7 @@ public class UserController {
      * @param userId
      * @return
      */
-    @RequestMapping("/query/user/{userId}")
+    @RequestMapping("/user/{userId}")
     public UserModel getMoney(@PathVariable Integer userId){
         UserModel model = new UserModel();
         model.setUserId(userId);

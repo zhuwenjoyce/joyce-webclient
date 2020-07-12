@@ -6,6 +6,7 @@ import com.joyce.webclient.demo.util.MyPrintUtil;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -39,7 +40,7 @@ public class MonoController {
      * @param userId
      * @return
      */
-    @RequestMapping("/query2/user/test-mono")
+    @RequestMapping("/mono/normal")
     public UserModel getMoney_webclient返回Mono对象(@PathVariable Integer userId){
         UserModel model = new UserModel();
         model.setUserId(userId);
@@ -61,6 +62,46 @@ public class MonoController {
         logger.info("query2，返回webclient请求");
 
         model.setMoneyModel(mono.block());
+        return model;
+    }
+
+    /**
+     * 演示webclient基本调用
+     */
+    @RequestMapping("/mono/test-timeout")
+    public UserModel getMoney_webclient_error(){
+        UserModel model = new UserModel();
+        model.setUsername("myname");
+
+        logger.info("query2，开始webclient请求");
+
+        // 拿到http请求结果
+        WebClient.ResponseSpec responseSpec = WebClient.create()
+                .get()
+                .uri("http://localhost:82/project-b/query/money/single-money")
+                .retrieve();
+
+        responseSpec.onStatus(HttpStatus::is5xxServerError, clientResponse -> {
+            return Mono.error(new Exception(clientResponse.statusCode().value() + " error code!!!!!!!!!!"));
+        });
+
+        // 返回 Mono对象
+        Mono<MoneyModel> mono = responseSpec.bodyToMono(MoneyModel.class);
+
+        MoneyModel moneyModel = mono.block(Duration.ofSeconds(1));
+
+        mono.doOnError(e->{
+            logger.info("请求出错：" + e.getMessage());
+        });
+        mono.doOnError(IllegalStateException.class, e -> {
+            logger.error("发现超时错误啦：：：： " + e.getMessage());
+        });
+
+        mono.delayElement(Duration.ofSeconds(2));
+
+        logger.info("query2，返回webclient请求");
+
+        model.setMoneyModel(moneyModel); // 最多等待1秒，如果没有等到结果就返回错误：IllegalStateException: Timeout on blocking read for 1000 MILLISECONDS
         return model;
     }
 
